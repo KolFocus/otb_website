@@ -10,6 +10,8 @@
     "prepare-data": "python3 scripts/prepare_data.py"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.10.2",
+    "@supabase/supabase-js": "^2.78.0",
     "html2canvas": "^1.4.1",
     "next": "14.2.35",
     "react": "^18",
