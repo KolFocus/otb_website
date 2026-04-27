@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { CATEGORY_CONFIGS } from "@/config/categories";
 import type { CategoryConfig, TabValueConfig } from "@/config/categories";
+import { getBrandDisplay, getBrandLogo } from "@/config/brands";
 import type { Product, AttributeRow, DimensionAnalysis, ModalState } from "@/types/product";
 
 // ─── Global Constants ─────────────────────────────────────────────────────────
@@ -137,12 +138,16 @@ function formatPrice(val: number) {
   return "¥" + val.toLocaleString("zh-CN");
 }
 
-function cleanBrandName(nick: string) {
+/** 品牌展示名：先查预制表，查不到再用正则降级 */
+function cleanBrandName(nick: string): string {
+  const preset = getBrandDisplay(nick);
+  if (preset) return preset;
   return nick
+    .replace(/^d\]/, "")
     .replace(/官方旗舰店$/, "")
     .replace(/旗舰店$/, "")
+    .replace(/官方海外旗$/, "")
     .replace(/[_]\d+$/, "")
-    .replace(/d\]/, "")
     .trim();
 }
 
@@ -184,6 +189,39 @@ function CheckMark({ has }: { has: boolean }) {
 
 // ─── ProductCard ──────────────────────────────────────────────────────────────
 
+function BrandLogo({ nick, className }: { nick: string; className?: string }) {
+  const logoUrl = getBrandLogo(nick);
+  const display = cleanBrandName(nick);
+  const initials = display
+    .split(/[\s.]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join("");
+
+  const [logoError, setLogoError] = useState(false);
+
+  if (logoUrl && !logoError) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={logoUrl}
+        alt={display}
+        className={`object-contain grayscale ${className ?? ""}`}
+        onError={() => setLogoError(true)}
+      />
+    );
+  }
+
+  return (
+    <span
+      className={`flex items-center justify-center bg-gray-100 text-gray-500 font-bold text-[10px] select-none ${className ?? ""}`}
+    >
+      {initials}
+    </span>
+  );
+}
+
 function ProductCard({
   product,
   ownBrandNick,
@@ -222,9 +260,12 @@ function ProductCard({
       </div>
 
       <div className="p-2.5 flex flex-col gap-1 flex-1">
-        <p className={`text-xs font-semibold truncate ${own ? "text-amber-600" : "text-gray-500"}`}>
-          {cleanBrandName(product.brand)}
-        </p>
+        <div className={`flex items-center gap-1.5 ${own ? "text-amber-600" : "text-gray-500"}`}>
+          <BrandLogo nick={product.brand} className="w-4 h-4 rounded-sm shrink-0" />
+          <p className="text-xs font-semibold truncate">
+            {cleanBrandName(product.brand)}
+          </p>
+        </div>
         <p className="text-xs text-gray-700 line-clamp-2 leading-relaxed flex-1">
           {product.title}
         </p>
