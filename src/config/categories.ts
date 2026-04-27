@@ -61,4 +61,24 @@ export const CATEGORY_CONFIGS: CategoryConfig[] = [
       "鞋跟款式",
     ],
   },
+  {
+    name: "时尚休闲鞋",
+    dataFile: "casual-products.json",
+    tabDimension: "鞋子类型",
+    tabValues: [
+      { value: "休闲鞋" },
+      { value: "老爹鞋" },
+      { value: "运动鞋" },
+    ],
+    tableDimensions: [
+      "装饰物",
+      "装饰位置",
+      "图案装饰元素",
+      "颜色",
+      "颜色类型",
+      "鞋面材质",
+      "鞋底厚薄",
+      "闭合方式",
+    ],
+  },
 ];

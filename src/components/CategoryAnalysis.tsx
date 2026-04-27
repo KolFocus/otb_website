@@ -11,8 +11,20 @@ import type { Product, AttributeRow, DimensionAnalysis, ModalState } from "@/typ
 const CURRENT_YEAR = 2025;
 const PREV_YEAR = CURRENT_YEAR - 1;
 
-// 本品默认值（运行时可切换）
 const DEFAULT_OWN_BRAND_NICK = "jimmychoo官方旗舰店";
+
+const CATEGORY_STORAGE_KEY = "otb_selected_category";
+
+function getSavedConfigIndex(): number {
+  try {
+    const saved = localStorage.getItem(CATEGORY_STORAGE_KEY);
+    if (saved) {
+      const idx = CATEGORY_CONFIGS.findIndex((c) => c.name === saved);
+      if (idx >= 0) return idx;
+    }
+  } catch {}
+  return 0;
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -139,7 +151,8 @@ function formatPrice(val: number) {
 }
 
 /** 品牌展示名：先查预制表，查不到再用正则降级 */
-function cleanBrandName(nick: string): string {
+function cleanBrandName(nick: string | null | undefined): string {
+  if (!nick) return "Unknown";
   const preset = getBrandDisplay(nick);
   if (preset) return preset;
   return nick
@@ -193,8 +206,8 @@ function CheckMark({ has, isOwn }: { has: boolean; isOwn?: boolean }) {
 
 // ─── ProductCard ──────────────────────────────────────────────────────────────
 
-function BrandLogo({ nick, className }: { nick: string; className?: string }) {
-  const logoUrl = getBrandLogo(nick);
+function BrandLogo({ nick, className }: { nick: string | null | undefined; className?: string }) {
+  const logoUrl = nick ? getBrandLogo(nick) : null;
   const display = cleanBrandName(nick);
   const initials = display
     .split(/[\s.]+/)
@@ -690,6 +703,69 @@ function ProductModal({
   );
 }
 
+// ─── CategoryDropdown ─────────────────────────────────────────────────────────
+
+function CategoryDropdown({
+  configIndex,
+  onChange,
+}: {
+  configIndex: number;
+  onChange: (index: number) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const config = CATEGORY_CONFIGS[configIndex];
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-2 group"
+      >
+        <span className="text-2xl font-light tracking-luxury-wider text-black uppercase">
+          {config.name}
+        </span>
+        <svg
+          className={`w-3.5 h-3.5 text-gray-400 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+          viewBox="0 0 12 8" fill="none" stroke="currentColor" strokeWidth="1.5"
+        >
+          <path d="M1 1l5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="absolute top-full left-0 mt-2 min-w-[10rem] bg-white border border-gray-200 shadow-lg z-50">
+          {CATEGORY_CONFIGS.map((c, i) => (
+            <button
+              key={c.name}
+              onClick={() => { onChange(i); setOpen(false); }}
+              className={`w-full text-left px-5 py-3 text-sm uppercase tracking-wider transition-colors ${
+                i === configIndex
+                  ? "text-[#C5973F] font-semibold bg-gray-50"
+                  : "text-black font-medium hover:bg-gray-50"
+              }`}
+            >
+              {i === configIndex && (
+                <span className="inline-block w-2 mr-1.5 text-[#C5973F]">✓</span>
+              )}
+              {i !== configIndex && <span className="inline-block w-2 mr-1.5" />}
+              {c.name}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── BrandFilterDropdown ──────────────────────────────────────────────────────
 
 function BrandFilterDropdown({
@@ -748,7 +824,7 @@ function BrandFilterDropdown({
       {open && (
         <div className="absolute top-full right-0 mt-2 w-60 bg-white border border-gray-200 shadow-xl z-50 max-h-80 overflow-y-auto">
           {/* Quick actions */}
-          <div className="flex border-b border-gray-100 sticky top-0 bg-white">
+          <div className="flex border-b border-gray-100 sticky top-0 bg-white z-10">
             {[
               { label: "All", action: () => onChange(allBrands) },
               { label: "None", action: selectNone },
@@ -903,6 +979,18 @@ export default function CategoryAnalysis() {
     return () => ro.disconnect();
   }, []);
 
+  // 客户端 mount 后从 localStorage 恢复（避免 SSR hydration 不匹配）
+  useEffect(() => {
+    setConfigIndex(getSavedConfigIndex());
+  }, []);
+
+  // 持久化品类选择：跳过首次 mount（防止 index=0 覆盖 localStorage）
+  const persistReady = useRef(false);
+  useEffect(() => {
+    if (!persistReady.current) { persistReady.current = true; return; }
+    try { localStorage.setItem(CATEGORY_STORAGE_KEY, config.name); } catch {}
+  }, [config.name]);
+
   // Fetch data when config changes
   useEffect(() => {
     setLoading(true);
@@ -985,19 +1073,9 @@ export default function CategoryAnalysis() {
             {/* 左列：品类名 + 趋势标注 + 品牌过滤器 */}
             <div className="flex items-center gap-6 min-w-0">
               {CATEGORY_CONFIGS.length === 1 ? (
-                <h1 className="text-2xl font-light tracking-luxury-wider text-black">{config.name}</h1>
+                <h1 className="text-2xl font-light tracking-luxury-wider text-black uppercase">{config.name}</h1>
               ) : (
-                <select
-                  value={configIndex}
-                  onChange={(e) => setConfigIndex(Number(e.target.value))}
-                  className="text-2xl font-light tracking-luxury-wider text-black bg-transparent outline-none cursor-pointer border-b border-transparent hover:border-black transition-colors py-1 uppercase"
-                >
-                  {CATEGORY_CONFIGS.map((c, i) => (
-                    <option key={c.name} value={i}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
+                <CategoryDropdown configIndex={configIndex} onChange={setConfigIndex} />
               )}
               <div className="h-4 w-[1px] bg-gray-200 flex-shrink-0" />
               <div className="flex items-center gap-3">
