@@ -38,6 +38,22 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
+  // 已登录且访问受保护页面 → 检查白名单
+  if (user && pathname !== "/login") {
+    const { data: member } = await supabase
+      .from("otb_member")
+      .select("granted")
+      .eq("email", user.email!)
+      .maybeSingle();
+
+    if (!member || !member.granted) {
+      await supabase.auth.signOut();
+      return NextResponse.redirect(
+        new URL("/login?error=access_revoked", request.url)
+      );
+    }
+  }
+
   return supabaseResponse;
 }
 

@@ -14,8 +14,8 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "浅口单鞋品类分析 | OTB",
-  description: "浅口单鞋品类属性趋势分析，竞品对标，JimmyChoo 本品视角",
+  title: "Jimmy Choo | OTB",
+  description: "Jimmy Choo OTB Intelligence — 品类属性趋势分析与竞品对标",
 };
 
 export default function RootLayout({

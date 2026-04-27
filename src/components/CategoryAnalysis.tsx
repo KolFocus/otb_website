@@ -1115,6 +1115,7 @@ function DimensionTable({
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function CategoryAnalysis() {
+  const router = useRouter();
   const [configIndex, setConfigIndex] = useState(0);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1126,6 +1127,33 @@ export default function CategoryAnalysis() {
   const headerRef = useRef<HTMLDivElement>(null);
 
   const config = CATEGORY_CONFIGS[configIndex];
+
+  // ── 授权检查（白名单 + granted）──────────────────────────────────────────────
+  const checkAccess = useCallback(async () => {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { router.push("/login"); return false; }
+    const { data: member } = await supabase
+      .from("otb_member")
+      .select("granted")
+      .eq("email", user.email!)
+      .maybeSingle();
+    if (!member || !member.granted) {
+      await supabase.auth.signOut();
+      router.push("/login?error=access_revoked");
+      return false;
+    }
+    return true;
+  }, [router]);
+
+  // Mount 时检查
+  useEffect(() => { checkAccess(); }, [checkAccess]);
+
+  // 每 5 分钟定时检查
+  useEffect(() => {
+    const timer = setInterval(() => { checkAccess(); }, 5 * 60 * 1000);
+    return () => clearInterval(timer);
+  }, [checkAccess]);
 
   // 动态测量全局导航栏高度，供维度标题吸顶使用
   useEffect(() => {
@@ -1142,6 +1170,12 @@ export default function CategoryAnalysis() {
   useEffect(() => {
     setConfigIndex(getSavedConfigIndex());
   }, []);
+
+  // 切换类目时检查授权
+  const handleConfigChange = useCallback(async (index: number) => {
+    const ok = await checkAccess();
+    if (ok) setConfigIndex(index);
+  }, [checkAccess]);
 
   // 持久化品类选择：跳过首次 mount（防止 index=0 覆盖 localStorage）
   const persistReady = useRef(false);
@@ -1209,10 +1243,11 @@ export default function CategoryAnalysis() {
   );
 
   const handleRowClick = useCallback(
-    (dimension: string, row: AttributeRow) => {
-      setModal({ dimension, value: row.value, selectedTab });
+    async (dimension: string, row: AttributeRow) => {
+      const ok = await checkAccess();
+      if (ok) setModal({ dimension, value: row.value, selectedTab });
     },
-    [selectedTab]
+    [selectedTab, checkAccess]
   );
 
   const ownBrandCount = useMemo(() => {
@@ -1243,7 +1278,7 @@ export default function CategoryAnalysis() {
               {CATEGORY_CONFIGS.length === 1 ? (
                 <h1 className="text-2xl font-light tracking-luxury-wider text-black uppercase">{config.name}</h1>
               ) : (
-                <CategoryDropdown configIndex={configIndex} onChange={setConfigIndex} />
+                <CategoryDropdown configIndex={configIndex} onChange={handleConfigChange} />
               )}
               <div className="h-4 w-[1px] bg-gray-200 flex-shrink-0" />
               <div className="flex items-center gap-3">

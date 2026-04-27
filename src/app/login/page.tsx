@@ -1,17 +1,30 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 type TabType = "login" | "register";
 
+const ACCESS_ERRORS: Record<string, string> = {
+  access_revoked: "Access denied — contact the administrator or sign in with an authorized account.",
+};
+
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<TabType>("login");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  // 读取 URL error 参数
+  useEffect(() => {
+    const code = searchParams.get("error");
+    if (code && ACCESS_ERRORS[code]) {
+      setError(ACCESS_ERRORS[code]);
+    }
+  }, [searchParams]);
 
   // ── Login ──────────────────────────────────────────────────────────────────
 
@@ -22,16 +35,32 @@ export default function LoginPage() {
     const email = (form.elements.namedItem("email") as HTMLInputElement).value;
     const password = (form.elements.namedItem("password") as HTMLInputElement).value;
 
+    setLoading(true);
     try {
-      setLoading(true);
       const supabase = createClient();
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) { setError(error.message); return; }
+
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+      if (signInError) { setError(signInError.message); setLoading(false); return; }
+
+      // Allowlist check — email must exist in otb_member with granted = true
+      const { data: member } = await supabase
+        .from("otb_member")
+        .select("email, granted")
+        .eq("email", email)
+        .maybeSingle();
+
+      if (!member || !member.granted) {
+        await supabase.auth.signOut();
+        setError("Access denied — contact the administrator or sign in with an authorized account.");
+        setLoading(false);
+        return;
+      }
+
+      // 成功：保持 loading=true 直到页面跳转，避免按钮短暂恢复高亮
       router.push("/");
       router.refresh();
     } catch {
       setError("Sign in failed. Please try again.");
-    } finally {
       setLoading(false);
     }
   };
@@ -50,21 +79,22 @@ export default function LoginPage() {
     if (password !== confirm) { setError("Passwords do not match."); return; }
     if (password.length < 6) { setError("Password must be at least 6 characters."); return; }
 
+    setLoading(true);
     try {
-      setLoading(true);
       const supabase = createClient();
       const { data, error } = await supabase.auth.signUp({ email, password });
-      if (error) { setError(error.message); return; }
+      if (error) { setError(error.message); setLoading(false); return; }
       if (data.session) {
+        // 成功：保持 loading=true 直到页面跳转
         router.push("/");
         router.refresh();
       } else {
         setSuccess("Account created. Please check your email to verify, then sign in.");
         setActiveTab("login");
+        setLoading(false);
       }
     } catch {
       setError("Registration failed. Please try again.");
-    } finally {
       setLoading(false);
     }
   };
@@ -125,6 +155,8 @@ export default function LoginPage() {
             </p>
           )}
 
+          {/* Forms — fixed height to keep card size consistent across tabs */}
+          <div className="min-h-[17rem]">
           {/* Login form */}
           {activeTab === "login" && (
             <form onSubmit={handleLogin} className="flex flex-col gap-4">
@@ -237,6 +269,7 @@ export default function LoginPage() {
               </button>
             </form>
           )}
+          </div>{/* end fixed-height wrapper */}
         </div>
 
         {/* Footer */}
