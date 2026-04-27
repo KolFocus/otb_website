@@ -62,6 +62,23 @@ export const CATEGORY_CONFIGS: CategoryConfig[] = [
     ],
   },
   {
+    name: "时装靴",
+    dataFile: "boots-products.json",
+    tabDimension: null,
+    tabValues: null,
+    tableDimensions: [
+      "装饰物",
+      "装饰位置",
+      "图案装饰元素",
+      "颜色",
+      "鞋面材质",
+      "鞋头形状",
+      "闭合方式",
+      "鞋跟款式",
+      "鞋跟高度",
+    ],
+  },
+  {
     name: "时尚休闲鞋",
     dataFile: "casual-products.json",
     tabDimension: "鞋子类型",

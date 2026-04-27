@@ -45,9 +45,11 @@ function deriveBrands(products: Product[]): string[] {
   return brands.sort();
 }
 
+const ALL_TAB_VALUE = "所有";
+
 function resolvedTabValues(products: Product[], config: CategoryConfig): TabValueConfig[] {
+  if (!config.tabDimension) return [{ value: ALL_TAB_VALUE }];
   if (config.tabValues !== null) return config.tabValues;
-  if (!config.tabDimension) return [];
   const key = config.tabDimension as keyof Product["attrs"];
   const vals = new Set<string>();
   products.forEach((p) => { const v = p.attrs[key]; if (v) vals.add(v); });
@@ -991,18 +993,21 @@ export default function CategoryAnalysis() {
     try { localStorage.setItem(CATEGORY_STORAGE_KEY, config.name); } catch {}
   }, [config.name]);
 
-  // Fetch data when config changes
+  // Fetch data when config changes（cancelled 标记防止旧请求覆盖新结果）
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
     setSelectedTab(null);
     setModal(null);
     fetch(`/data/${config.dataFile}`)
       .then((r) => r.json())
       .then((data: Product[]) => {
+        if (cancelled) return;
         setProducts(data);
-        setSelectedBrands(deriveBrands(data)); // 默认全选
+        setSelectedBrands(deriveBrands(data));
         setLoading(false);
       });
+    return () => { cancelled = true; };
   }, [config.dataFile]);
 
   // Tab values resolved from config or data
@@ -1116,7 +1121,7 @@ export default function CategoryAnalysis() {
           </div>
 
           {/* Tab 切换 */}
-          {!loading && tabValues.length > 0 && (
+          {!loading && (
             <div className="flex gap-10 pb-4">
               {tabValues.map((t) => (
                 <button
