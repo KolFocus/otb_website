@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { CATEGORY_CONFIGS } from "@/config/categories";
 import type { CategoryConfig, TabValueConfig } from "@/config/categories";
 import { getBrandDisplay, getBrandLogo } from "@/config/brands";
@@ -226,19 +226,227 @@ function BrandLogo({ nick, className }: { nick: string; className?: string }) {
   );
 }
 
+// ─── Lightbox ─────────────────────────────────────────────────────────────────
+
+function Lightbox({
+  products,
+  initialIndex,
+  config,
+  selectedTab,
+  excludeDimensions,
+  ownBrandNick,
+  onClose,
+}: {
+  products: Product[];
+  initialIndex: number;
+  config: CategoryConfig;
+  selectedTab: string | null;
+  excludeDimensions: string[];
+  ownBrandNick: string;
+  onClose: () => void;
+}) {
+  const [index, setIndex] = useState(initialIndex);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [downloading, setDownloading] = useState(false);
+
+  const product = products[index];
+  const own = product.brand === ownBrandNick;
+
+  const visibleDims = useMemo(() => {
+    const dims = config.tableDimensions ?? (Object.keys(product.attrs) as string[]);
+    return dims.filter((d) => !excludeDimensions.includes(d));
+  }, [config.tableDimensions, excludeDimensions, product.attrs]);
+
+  const goPrev = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setIndex((i) => (i - 1 + products.length) % products.length);
+  };
+
+  const goNext = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setIndex((i) => (i + 1) % products.length);
+  };
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "ArrowLeft") goPrev();
+      else if (e.key === "ArrowRight") goNext();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [products.length]);
+
+  const handleDownload = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!cardRef.current || downloading) return;
+    setDownloading(true);
+    try {
+      const { default: html2canvas } = await import("html2canvas");
+      const canvas = await html2canvas(cardRef.current, {
+        useCORS: true,
+        scale: 2,
+        backgroundColor: "#111111",
+      });
+
+      const a = document.createElement("a");
+      const brand = cleanBrandName(product.brand).replace(/\s+/g, "_");
+      a.download = `${brand}-${product.itemId}.png`;
+      a.href = canvas.toDataURL("image/png");
+      a.click();
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center"
+      style={{ backgroundColor: "rgba(0,0,0,0.95)" }}
+      onClick={(e) => { e.stopPropagation(); onClose(); }}
+    >
+      {/* Close */}
+      <button
+        className="absolute top-6 right-8 text-white/40 hover:text-white text-3xl font-light z-10 transition-colors"
+        onClick={(e) => { e.stopPropagation(); onClose(); }}
+      >
+        ×
+      </button>
+
+      {/* Prev arrow */}
+      <button
+        onClick={goPrev}
+        disabled={products.length <= 1}
+        className="absolute left-6 text-white/30 hover:text-white text-6xl font-thin disabled:opacity-0 transition-colors leading-none z-10"
+      >
+        ‹
+      </button>
+
+      {/* Main content: large image + info sidebar */}
+      <div
+        ref={cardRef}
+        className="flex items-stretch gap-0 max-h-[90vh]"
+        style={{ maxWidth: "calc(100vw - 160px)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Large image */}
+        <div className="relative flex-1 flex items-center justify-center bg-[#111] min-w-0">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={product.imageUrl}
+            alt={product.title}
+            className="max-h-[90vh] max-w-full object-contain"
+            crossOrigin="anonymous"
+          />
+          {own && (
+            <span className="absolute top-0 left-0 bg-[#C5973F] text-white text-[9px] font-bold px-2 py-1 uppercase tracking-widest">
+              OWN
+            </span>
+          )}
+        </div>
+
+        {/* Info sidebar */}
+        <div className="w-64 bg-white flex-shrink-0 flex flex-col overflow-y-auto">
+          <div className="p-5 flex flex-col gap-4 flex-1">
+            {/* Brand + Title */}
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <BrandLogo nick={product.brand} className="w-3 h-3 grayscale" />
+                <span className="text-[11px] font-bold uppercase tracking-luxury text-black">
+                  {cleanBrandName(product.brand)}
+                </span>
+              </div>
+              <p className="text-[11px] text-gray-500 leading-snug">{product.title}</p>
+            </div>
+
+            {/* Price + Share */}
+            <div className="flex items-baseline justify-between border-y border-gray-100 py-2.5">
+              <span className="text-sm font-medium text-black tabular-nums">
+                {formatPrice(product.unitPrice)}
+              </span>
+              <span className="text-[9px] text-gray-400 uppercase tracking-tighter">
+                QTY {product.netQtyPct?.toFixed(2)}%
+              </span>
+            </div>
+
+            {/* Tab info */}
+            {config.tabDimension && selectedTab && (
+              <div className="flex items-center gap-2">
+                <span className="text-[8px] text-gray-400 uppercase tracking-widest">
+                  {config.tabDimension}
+                </span>
+                <span className="text-[9px] font-bold border border-[#1A1A1A] px-1.5 py-0.5 uppercase tracking-wider text-[#1A1A1A]">
+                  {selectedTab}
+                </span>
+              </div>
+            )}
+
+            {/* Attribute dimensions */}
+            <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+              {visibleDims.map((dim) => {
+                const val = product.attrs[dim as keyof Product["attrs"]];
+                if (!val) return null;
+                return (
+                  <div key={dim}>
+                    <p className="text-[8px] text-gray-400 uppercase tracking-widest leading-none mb-0.5">
+                      {dim}
+                    </p>
+                    <p className="text-[10px] text-[#1A1A1A] font-medium leading-tight">{val}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Bottom actions */}
+          <div className="border-t border-gray-100 px-5 py-4 flex items-center justify-between flex-shrink-0">
+            <span className="text-[10px] text-gray-400 tabular-nums">
+              {index + 1} / {products.length}
+            </span>
+            <button
+              onClick={handleDownload}
+              disabled={downloading}
+              className="text-[10px] uppercase tracking-widest font-bold border border-[#1A1A1A] text-[#1A1A1A] hover:bg-[#1A1A1A] hover:text-white px-3 py-1.5 transition-colors disabled:opacity-30"
+            >
+              {downloading ? "..." : "↓ Save"}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Next arrow */}
+      <button
+        onClick={goNext}
+        disabled={products.length <= 1}
+        className="absolute right-6 text-white/30 hover:text-white text-6xl font-thin disabled:opacity-0 transition-colors leading-none z-10"
+      >
+        ›
+      </button>
+
+    </div>
+  );
+}
+
+// ─── ProductCard ──────────────────────────────────────────────────────────────
+
 function ProductCard({
   product,
   ownBrandNick,
+  onImageClick,
 }: {
   product: Product;
   ownBrandNick: string;
+  onImageClick: () => void;
 }) {
   const [imgError, setImgError] = useState(false);
   const own = product.brand === ownBrandNick;
 
   return (
-    <div className="flex flex-col group cursor-pointer">
-      <div className="relative bg-gray-50 aspect-luxury overflow-hidden">
+    <div className="flex flex-col group">
+      <div
+        className="relative bg-gray-50 aspect-luxury overflow-hidden cursor-zoom-in"
+        onClick={() => !imgError && onImageClick()}
+      >
         {!imgError ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -257,6 +465,14 @@ function ProductCard({
             OWN
           </span>
         )}
+        {/* Hover hint */}
+        {!imgError && (
+          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-black/10">
+            <span className="text-white text-[10px] uppercase tracking-widest font-bold bg-black/40 px-3 py-1.5">
+              View
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="pt-3 pb-2 flex flex-col gap-1">
@@ -274,7 +490,7 @@ function ProductCard({
             {formatPrice(product.unitPrice)}
           </span>
           <span className="text-[9px] text-gray-400 uppercase tracking-tighter">
-            Share {product.netQtyPct?.toFixed(2)}%
+            QTY Share {product.netQtyPct?.toFixed(2)}%
           </span>
         </div>
       </div>
@@ -288,16 +504,21 @@ function ProductModal({
   modal,
   products,
   config,
+  tabValues,
   ownBrandNick,
   onClose,
 }: {
   modal: ModalState;
   products: Product[];
   config: CategoryConfig;
+  tabValues: TabValueConfig[];
   ownBrandNick: string;
   onClose: () => void;
 }) {
   const [year, setYear] = useState<number>(CURRENT_YEAR);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [downloading, setDownloading] = useState(false);
+  const modalContentRef = useRef<HTMLDivElement>(null);
   const tabKey = config.tabDimension as keyof Product["attrs"] | undefined;
 
   const filtered = useMemo(() => {
@@ -322,6 +543,54 @@ function ProductModal({
     [filtered, ownBrandNick]
   );
 
+  const handleDownloadGrid = async () => {
+    if (!modalContentRef.current || downloading) return;
+    setDownloading(true);
+    try {
+      const el = modalContentRef.current;
+
+      // 临时展开高度/滚动，确保整个网格都被捕获
+      const prev = { maxHeight: el.style.maxHeight, overflow: el.style.overflow };
+      el.style.maxHeight = "none";
+      el.style.overflow = "visible";
+
+      // 临时注入样式：移除文字截断，让完整文字显示在截图中
+      const styleEl = document.createElement("style");
+      styleEl.id = "__dl_override__";
+      styleEl.textContent = `
+        #__modal_dl_target__ .truncate {
+          overflow: visible !important;
+          text-overflow: clip !important;
+          white-space: normal !important;
+        }
+        #__modal_dl_target__ .line-clamp-1 {
+          display: block !important;
+          overflow: visible !important;
+          -webkit-line-clamp: unset !important;
+        }
+      `;
+      document.head.appendChild(styleEl);
+      el.id = "__modal_dl_target__";
+
+      const { default: html2canvas } = await import("html2canvas");
+      const canvas = await html2canvas(el, { useCORS: true, scale: 2, backgroundColor: "#ffffff" });
+
+      // 还原
+      el.id = "";
+      document.head.removeChild(styleEl);
+      el.style.maxHeight = prev.maxHeight;
+      el.style.overflow = prev.overflow;
+
+      const a = document.createElement("a");
+      const tabLabel = modal.selectedTab ? `-${modal.selectedTab}` : "";
+      a.download = `${modal.dimension}-${modal.value}${tabLabel}-${year}.png`;
+      a.href = canvas.toDataURL("image/png");
+      a.click();
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -329,6 +598,7 @@ function ProductModal({
       onClick={onClose}
     >
       <div
+        ref={modalContentRef}
         className="bg-white shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
@@ -349,24 +619,34 @@ function ProductModal({
             <p className="text-xs text-gray-400 mt-1 uppercase tracking-tighter">Total {filtered.length} Items</p>
           </div>
           <div className="flex items-center gap-6">
-            <div className="flex border border-[#1A1A1A]">
+            <div className="flex gap-6" data-dl-hide="true">
               {[PREV_YEAR, CURRENT_YEAR].map((y) => (
                 <button
                   key={y}
                   onClick={() => setYear(y)}
-                  className={`px-5 py-1.5 text-[11px] uppercase tracking-widest font-bold transition-colors ${
+                  className={`relative pb-1.5 text-[11px] uppercase tracking-widest font-bold transition-colors ${
                     year === y
-                      ? "bg-[#C5973F] text-white border-[#C5973F]"
-                      : "bg-white text-[#1A1A1A] hover:bg-gray-50"
+                      ? "text-[#1A1A1A] after:content-[''] after:absolute after:bottom-0 after:left-0 after:w-full after:h-0.5 after:bg-[#C5973F]"
+                      : "text-gray-400 hover:text-[#1A1A1A]"
                   }`}
                 >
                   {y}
                 </button>
               ))}
             </div>
+            <div className="w-[1px] h-4 bg-gray-200" data-dl-hide="true" />
+            <button
+              onClick={handleDownloadGrid}
+              disabled={downloading || sorted.length === 0}
+              className="text-[10px] uppercase tracking-widest font-bold border border-[#1A1A1A] text-[#1A1A1A] hover:bg-[#1A1A1A] hover:text-white px-3 py-1.5 transition-colors disabled:opacity-30"
+              data-dl-hide="true"
+            >
+              {downloading ? "..." : "↓ Save All"}
+            </button>
             <button
               onClick={onClose}
               className="w-10 h-10 flex items-center justify-center text-black hover:bg-gray-100 transition-colors text-2xl font-light"
+              data-dl-hide="true"
             >
               ×
             </button>
@@ -380,12 +660,32 @@ function ProductModal({
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-6 gap-y-10">
               {sorted.map((product, idx) => (
-                <ProductCard key={idx} product={product} ownBrandNick={ownBrandNick} />
+                <ProductCard
+                  key={idx}
+                  product={product}
+                  ownBrandNick={ownBrandNick}
+                  onImageClick={() => setLightboxIndex(idx)}
+                />
               ))}
             </div>
           )}
         </div>
       </div>
+
+      {/* Lightbox */}
+      {lightboxIndex !== null && (
+        <Lightbox
+          products={sorted}
+          initialIndex={lightboxIndex}
+          config={config}
+          selectedTab={modal.selectedTab}
+          excludeDimensions={
+            tabValues.find((t) => t.value === modal.selectedTab)?.excludeDimensions ?? []
+          }
+          ownBrandNick={ownBrandNick}
+          onClose={() => setLightboxIndex(null)}
+        />
+      )}
     </div>
   );
 }
@@ -395,9 +695,11 @@ function ProductModal({
 function DimensionTable({
   analysis,
   onRowClick,
+  stickyTop,
 }: {
   analysis: DimensionAnalysis;
   onRowClick: (row: AttributeRow) => void;
+  stickyTop: number;
 }) {
   const [expanded, setExpanded] = useState(true);
   const maxShare = Math.max(...analysis.rows.map((r) => r.shareCurr));
@@ -406,7 +708,8 @@ function DimensionTable({
     <div className="mb-12">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-baseline gap-4 py-4 border-b border-black text-left group"
+        style={{ top: stickyTop }}
+        className="sticky z-20 w-full flex items-baseline gap-4 py-4 border-b border-black text-left group bg-white"
       >
         <span className="text-[11px] font-bold text-[#C5973F] tracking-widest shrink-0">
           {String(analysis.rows.length).padStart(2, "0")} /
@@ -473,8 +776,21 @@ export default function CategoryAnalysis() {
   const [selectedTab, setSelectedTab] = useState<string | null>(null);
   const [ownBrandNick, setOwnBrandNick] = useState<string>(DEFAULT_OWN_BRAND_NICK);
   const [modal, setModal] = useState<ModalState | null>(null);
+  const [headerHeight, setHeaderHeight] = useState(0);
+  const headerRef = useRef<HTMLDivElement>(null);
 
   const config = CATEGORY_CONFIGS[configIndex];
+
+  // 动态测量全局导航栏高度，供维度标题吸顶使用
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+    const update = () => setHeaderHeight(el.offsetHeight);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   // Fetch data when config changes
   useEffect(() => {
@@ -547,7 +863,7 @@ export default function CategoryAnalysis() {
   return (
     <div className="min-h-screen bg-white">
       {/* Sticky Header */}
-      <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-gray-100">
+      <div ref={headerRef} className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-8">
           {/* Title Row */}
           <div className="flex items-center justify-between py-6">
@@ -646,6 +962,7 @@ export default function CategoryAnalysis() {
                   key={dim.dimension}
                   analysis={dim}
                   onRowClick={(row) => handleRowClick(dim.dimension, row)}
+                  stickyTop={headerHeight}
                 />
               ))}
             </div>
@@ -698,6 +1015,7 @@ export default function CategoryAnalysis() {
           modal={modal}
           products={products}
           config={config}
+          tabValues={tabValues}
           ownBrandNick={ownBrandNick}
           onClose={() => setModal(null)}
         />

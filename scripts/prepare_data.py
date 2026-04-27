@@ -17,7 +17,6 @@ OUTPUT_PATH = os.path.join(os.path.dirname(__file__), "../public/data/pumps-prod
 
 # 需要过滤掉的字段
 DROP_FIELDS = {
-    "md5_item_id",  # 内部哈希ID
     "image_url",    # 相对路径，用url代替
     "图片",          # 空列
     "cate_name",    # 固定为"浅口单鞋"
@@ -29,6 +28,7 @@ DROP_FIELDS = {
 RENAME_MAP = {
     "yr": "year",
     "seller_nick": "brand",
+    "md5_item_id": "itemId",
     "url": "imageUrl",
     "net_qty_pct": "netQtyPct",
     "net_gmv_pct": "netGmvPct",

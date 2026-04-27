@@ -1,6 +1,7 @@
 export interface Product {
   year: number;
   brand: string;
+  itemId: string;
   title: string;
   imageUrl: string;
   netQtyPct: number;
