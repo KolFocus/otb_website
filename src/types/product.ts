@@ -27,8 +27,8 @@ export interface Product {
 
 export interface AttributeRow {
   value: string;
-  share2025: number;
-  share2024: number;
+  shareCurr: number;
+  sharePrev: number;
   yoy: number | "NEW" | null;
   hasCompetitor: boolean;
   hasOwnBrand: boolean;
@@ -42,5 +42,5 @@ export interface DimensionAnalysis {
 export interface ModalState {
   dimension: string;
   value: string;
-  heelHeight: string;
+  selectedTab: string | null;
 }
