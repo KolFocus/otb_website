@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { CATEGORY_CONFIGS } from "@/config/categories";
 import type { CategoryConfig, TabValueConfig } from "@/config/categories";
 import { getBrandDisplay, getBrandLogo } from "@/config/brands";
 import type { Product, AttributeRow, DimensionAnalysis, ModalState } from "@/types/product";
+import { createClient } from "@/lib/supabase/client";
 
 // ─── Global Constants ─────────────────────────────────────────────────────────
 
@@ -705,6 +707,161 @@ function ProductModal({
   );
 }
 
+// ─── UserMenu ─────────────────────────────────────────────────────────────────
+
+function ChangePasswordModal({ onClose }: { onClose: () => void }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const newPwd = (form.elements.namedItem("newPassword") as HTMLInputElement).value;
+    const confirm = (form.elements.namedItem("confirmPassword") as HTMLInputElement).value;
+    if (newPwd !== confirm) { setError("Passwords do not match."); return; }
+    if (newPwd.length < 6) { setError("Password must be at least 6 characters."); return; }
+    setError(null);
+    setLoading(true);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.updateUser({ password: newPwd });
+      if (error) { setError(error.message); return; }
+      setSuccess(true);
+      setTimeout(onClose, 1500);
+    } catch {
+      setError("Failed to update password.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60" onClick={onClose}>
+      <div className="bg-white border border-[#E8E4DF] p-8 w-full max-w-xs relative" onClick={(e) => e.stopPropagation()}>
+        <p className="text-[9px] uppercase tracking-[0.25em] text-gray-400 font-semibold mb-1">Account</p>
+        <h2 className="text-base font-light text-[#1A1A1A] tracking-wider uppercase mb-6">Change Password</h2>
+        <div className="w-6 h-[1px] bg-[#C5973F] mb-6" />
+
+        {error && (
+          <p className="mb-4 text-[10px] text-red-500 uppercase tracking-wider border border-red-200 px-3 py-2 bg-red-50">
+            {error}
+          </p>
+        )}
+        {success && (
+          <p className="mb-4 text-[10px] text-[#C5973F] uppercase tracking-wider border border-[#EFE0C0] px-3 py-2 bg-[#EFE0C0]/30">
+            Password updated successfully.
+          </p>
+        )}
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[9px] uppercase tracking-[0.2em] text-gray-400 font-semibold">New Password</label>
+            <input
+              name="newPassword" type="password" required disabled={loading || success}
+              placeholder="Min. 6 characters"
+              className="border border-[#E8E4DF] px-3 py-2.5 text-sm text-[#1A1A1A] placeholder-gray-300 outline-none focus:border-[#1A1A1A] transition-colors disabled:opacity-50 bg-white"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[9px] uppercase tracking-[0.2em] text-gray-400 font-semibold">Confirm Password</label>
+            <input
+              name="confirmPassword" type="password" required disabled={loading || success}
+              placeholder="Re-enter password"
+              className="border border-[#E8E4DF] px-3 py-2.5 text-sm text-[#1A1A1A] placeholder-gray-300 outline-none focus:border-[#1A1A1A] transition-colors disabled:opacity-50 bg-white"
+            />
+          </div>
+          <div className="flex gap-3 mt-2">
+            <button
+              type="button" onClick={onClose} disabled={loading}
+              className="flex-1 border border-[#E8E4DF] py-2.5 text-[10px] uppercase tracking-[0.2em] text-gray-400 hover:border-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit" disabled={loading || success}
+              className="flex-1 bg-[#1A1A1A] text-white py-2.5 text-[10px] uppercase tracking-[0.2em] font-semibold hover:bg-black transition-colors disabled:opacity-50"
+            >
+              {loading ? "Saving..." : "Save"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function UserMenu() {
+  const router = useRouter();
+  const [email, setEmail] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+  const [showChangePwd, setShowChangePwd] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    createClient().auth.getUser().then(({ data }) => {
+      setEmail(data.user?.email ?? null);
+    });
+  }, []);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const handleSignOut = async () => {
+    await createClient().auth.signOut();
+    router.push("/login");
+  };
+
+  if (!email) return null;
+
+  const shortEmail = email.length > 22 ? email.slice(0, 20) + "…" : email;
+
+  return (
+    <>
+      <div ref={ref} className="relative">
+        <button
+          onClick={() => setOpen((v) => !v)}
+          className="flex items-center gap-1.5 group"
+        >
+          <span className="text-[10px] text-gray-400 uppercase tracking-widest font-semibold group-hover:text-[#1A1A1A] transition-colors">
+            {shortEmail}
+          </span>
+          <svg
+            className={`w-2.5 h-2.5 text-gray-400 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+            viewBox="0 0 10 6" fill="none" stroke="currentColor" strokeWidth="1.5"
+          >
+            <path d="M1 1l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+
+        {open && (
+          <div className="absolute top-full right-0 mt-2 w-44 bg-white border border-[#E8E4DF] z-50">
+            <button
+              onClick={() => { setOpen(false); setShowChangePwd(true); }}
+              className="w-full text-left px-4 py-3 text-[10px] uppercase tracking-wider text-[#1A1A1A] font-medium hover:bg-[#F9F8F6] transition-colors border-b border-[#E8E4DF]"
+            >
+              Change Password
+            </button>
+            <button
+              onClick={handleSignOut}
+              className="w-full text-left px-4 py-3 text-[10px] uppercase tracking-wider text-gray-400 font-medium hover:bg-[#F9F8F6] hover:text-[#1A1A1A] transition-colors"
+            >
+              Sign Out
+            </button>
+          </div>
+        )}
+      </div>
+
+      {showChangePwd && <ChangePasswordModal onClose={() => setShowChangePwd(false)} />}
+    </>
+  );
+}
+
 // ─── CategoryDropdown ─────────────────────────────────────────────────────────
 
 function CategoryDropdown({
@@ -1072,6 +1229,12 @@ export default function CategoryAnalysis() {
     <div className="min-h-screen bg-white">
       {/* Sticky Header */}
       <div ref={headerRef} className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-gray-100">
+        {/* User bar */}
+        <div className="border-b border-[#E8E4DF]/60">
+          <div className="max-w-7xl mx-auto px-8 py-1.5 flex justify-end">
+            <UserMenu />
+          </div>
+        </div>
         <div className="max-w-7xl mx-auto px-8">
           {/* Title Row — 与主内容使用相同的 grid 列宽，确保左右边界对齐 */}
           <div className="grid py-6 gap-16" style={{ gridTemplateColumns: "1fr 16rem" }}>
