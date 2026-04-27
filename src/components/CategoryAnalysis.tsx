@@ -127,11 +127,11 @@ function formatPct(val: number) {
 
 function formatYoy(yoy: number | "NEW" | null) {
   if (yoy === null) return { text: "—", color: "text-gray-400" };
-  if (yoy === "NEW") return { text: "NEW", color: "text-blue-600", badge: true };
+  if (yoy === "NEW") return { text: "NEW", color: "text-black", badge: true };
   const pct = (yoy * 100).toFixed(0);
-  if (yoy > 0) return { text: `+${pct}%`, color: "text-emerald-600" };
-  if (yoy < 0) return { text: `${pct}%`, color: "text-red-500" };
-  return { text: "0%", color: "text-gray-500" };
+  if (yoy > 0) return { text: `+${pct}%`, color: "text-black" };
+  if (yoy < 0) return { text: `${pct}%`, color: "text-gray-400" };
+  return { text: "0%", color: "text-gray-400" };
 }
 
 function formatPrice(val: number) {
@@ -157,34 +157,38 @@ function YoyBadge({ yoy }: { yoy: number | "NEW" | null }) {
   const { text, color, badge } = formatYoy(yoy);
   if (badge) {
     return (
-      <span className="inline-block px-1.5 py-0.5 text-xs font-semibold bg-blue-100 text-blue-700 rounded">
+      <span className="inline-block px-1.5 py-0.5 text-[10px] font-bold border border-black text-black uppercase tracking-wider">
         NEW
       </span>
     );
   }
-  return <span className={`text-sm font-medium ${color}`}>{text}</span>;
+  return <span className={`text-xs font-medium tracking-wide ${color}`}>{text}</span>;
 }
 
 function ShareBar({ share, maxShare }: { share: number; maxShare: number }) {
   const width = maxShare > 0 ? (share / maxShare) * 100 : 0;
   return (
-    <div className="flex items-center gap-2">
-      <div className="flex-1 bg-gray-100 rounded-full h-2 min-w-[60px]">
-        <div className="h-2 rounded-full bg-amber-400" style={{ width: `${width}%` }} />
+    <div className="flex items-center gap-3">
+      <div className="flex-1 bg-gray-100 h-[2px] min-w-[60px]">
+        <div className="h-[2px] bg-[#C5973F]" style={{ width: `${width}%` }} />
       </div>
-      <span className="text-sm text-gray-700 w-12 text-right tabular-nums">
+      <span className="text-xs text-[#1A1A1A] font-medium w-10 text-right tabular-nums">
         {formatPct(share)}
       </span>
     </div>
   );
 }
 
-function CheckMark({ has }: { has: boolean }) {
-  return has ? (
-    <span className="text-emerald-500 font-bold">√</span>
-  ) : (
-    <span className="text-gray-300">×</span>
-  );
+function CheckMark({ has, isOwn }: { has: boolean; isOwn?: boolean }) {
+  if (!has) return <span className="text-gray-200 text-xs">/</span>;
+  if (isOwn) {
+    return (
+      <span className="inline-flex items-center justify-center w-5 h-5 bg-[#C5973F] text-white text-[9px] font-bold tracking-tight">
+        JC
+      </span>
+    );
+  }
+  return <span className="text-[#1A1A1A] font-bold text-xs">●</span>;
 }
 
 // ─── ProductCard ──────────────────────────────────────────────────────────────
@@ -233,48 +237,44 @@ function ProductCard({
   const own = product.brand === ownBrandNick;
 
   return (
-    <div
-      className={`rounded-xl overflow-hidden flex flex-col border transition-shadow hover:shadow-md ${
-        own ? "border-amber-400 shadow-amber-100 shadow-sm" : "border-gray-100"
-      }`}
-    >
-      <div className="relative bg-gray-50 aspect-square">
+    <div className="flex flex-col group cursor-pointer">
+      <div className="relative bg-gray-50 aspect-luxury overflow-hidden">
         {!imgError ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={product.imageUrl}
             alt={product.title}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
             onError={() => setImgError(true)}
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-gray-300 text-xs">
-            无图片
+          <div className="w-full h-full flex items-center justify-center text-gray-300 text-[10px] uppercase tracking-widest">
+            No Image
           </div>
         )}
         {own && (
-          <span className="absolute top-2 left-2 bg-amber-400 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
-            本品
+          <span className="absolute top-0 left-0 bg-[#C5973F] text-white text-[9px] font-bold px-2 py-1 uppercase tracking-widest">
+            OWN
           </span>
         )}
       </div>
 
-      <div className="p-2.5 flex flex-col gap-1 flex-1">
-        <div className={`flex items-center gap-1.5 ${own ? "text-amber-600" : "text-gray-500"}`}>
-          <BrandLogo nick={product.brand} className="w-4 h-4 rounded-sm shrink-0" />
-          <p className="text-xs font-semibold truncate">
+      <div className="pt-3 pb-2 flex flex-col gap-1">
+        <div className="flex items-center gap-2">
+          <BrandLogo nick={product.brand} className="w-3 h-3 grayscale opacity-80" />
+          <p className="text-[10px] font-bold uppercase tracking-luxury text-black truncate">
             {cleanBrandName(product.brand)}
           </p>
         </div>
-        <p className="text-xs text-gray-700 line-clamp-2 leading-relaxed flex-1">
+        <p className="text-[11px] text-gray-500 line-clamp-1 leading-tight uppercase tracking-tight">
           {product.title}
         </p>
-        <div className="flex items-center justify-between mt-1">
-          <span className="text-sm font-bold text-gray-900">
+        <div className="flex items-baseline justify-between mt-0.5 border-t border-gray-100 pt-1.5">
+          <span className="text-xs font-medium text-black tabular-nums">
             {formatPrice(product.unitPrice)}
           </span>
-          <span className="text-[10px] text-gray-400">
-            {product.netQtyPct?.toFixed(2)}% 销量
+          <span className="text-[9px] text-gray-400 uppercase tracking-tighter">
+            Share {product.netQtyPct?.toFixed(2)}%
           </span>
         </div>
       </div>
@@ -325,39 +325,39 @@ function ProductModal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+      style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[85vh] flex flex-col"
+        className="bg-white shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+        <div className="flex items-center justify-between px-8 py-6 border-b border-gray-100">
           <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs text-gray-400 uppercase tracking-wide">
+            <div className="flex items-baseline gap-4">
+              <span className="text-[10px] text-gray-400 uppercase tracking-luxury-wider font-semibold">
                 {modal.dimension}
               </span>
-              <span className="text-lg font-semibold text-gray-900">{modal.value}</span>
+              <h2 className="text-2xl font-light text-black uppercase tracking-wider">{modal.value}</h2>
               {modal.selectedTab && (
-                <span className="px-2 py-0.5 bg-gray-100 text-gray-500 text-xs rounded-full">
+                <span className="border border-black px-2 py-0.5 text-black text-[10px] uppercase tracking-widest font-bold">
                   {modal.selectedTab}
                 </span>
               )}
             </div>
-            <p className="text-sm text-gray-400 mt-0.5">共 {filtered.length} 款商品</p>
+            <p className="text-xs text-gray-400 mt-1 uppercase tracking-tighter">Total {filtered.length} Items</p>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="flex rounded-lg overflow-hidden border border-gray-200">
+          <div className="flex items-center gap-6">
+            <div className="flex border border-[#1A1A1A]">
               {[PREV_YEAR, CURRENT_YEAR].map((y) => (
                 <button
                   key={y}
                   onClick={() => setYear(y)}
-                  className={`px-4 py-1.5 text-sm font-medium transition-colors ${
+                  className={`px-5 py-1.5 text-[11px] uppercase tracking-widest font-bold transition-colors ${
                     year === y
-                      ? "bg-gray-900 text-white"
-                      : "bg-white text-gray-500 hover:bg-gray-50"
+                      ? "bg-[#C5973F] text-white border-[#C5973F]"
+                      : "bg-white text-[#1A1A1A] hover:bg-gray-50"
                   }`}
                 >
                   {y}
@@ -366,7 +366,7 @@ function ProductModal({
             </div>
             <button
               onClick={onClose}
-              className="w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors text-lg"
+              className="w-10 h-10 flex items-center justify-center text-black hover:bg-gray-100 transition-colors text-2xl font-light"
             >
               ×
             </button>
@@ -374,11 +374,11 @@ function ProductModal({
         </div>
 
         {/* Product Grid */}
-        <div className="overflow-y-auto p-6">
+        <div className="overflow-y-auto p-8 bg-white">
           {sorted.length === 0 ? (
-            <div className="text-center py-16 text-gray-400">该组合暂无商品数据</div>
+            <div className="text-center py-24 text-gray-300 uppercase tracking-widest text-sm">No items found for this combination</div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-6 gap-y-10">
               {sorted.map((product, idx) => (
                 <ProductCard key={idx} product={product} ownBrandNick={ownBrandNick} />
               ))}
@@ -403,59 +403,62 @@ function DimensionTable({
   const maxShare = Math.max(...analysis.rows.map((r) => r.shareCurr));
 
   return (
-    <div className="mb-2">
+    <div className="mb-12">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center gap-2 px-4 py-2.5 bg-gray-50 hover:bg-gray-100 transition-colors text-left rounded-lg mb-1"
+        className="w-full flex items-baseline gap-4 py-4 border-b border-black text-left group"
       >
-        <span className={`text-gray-400 transition-transform text-xs ${expanded ? "rotate-90" : ""}`}>
-          ▶
+        <span className="text-[11px] font-bold text-[#C5973F] tracking-widest shrink-0">
+          {String(analysis.rows.length).padStart(2, "0")} /
         </span>
-        <span className="text-sm font-semibold text-gray-700">{analysis.dimension}</span>
-        <span className="text-xs text-gray-400">{analysis.rows.length} 项</span>
+        <h3 className="text-xl font-light text-[#1A1A1A] tracking-wider uppercase">{analysis.dimension}</h3>
+        <span className="text-[10px] text-gray-400 font-medium uppercase tracking-widest">{analysis.rows.length} ATTRIBUTES</span>
+        <span className="ml-auto text-[#1A1A1A] font-light text-xl transition-transform duration-300" style={{ transform: expanded ? 'rotate(45deg)' : 'rotate(0deg)' }}>
+          +
+        </span>
       </button>
 
       {expanded && (
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-xs text-gray-400 border-b border-gray-100">
-              <th className="text-left px-4 py-2 font-medium w-28">细分属性</th>
-              <th className="text-left px-4 py-2 font-medium">
-                {String(CURRENT_YEAR).slice(2)}年占比
-              </th>
-              <th className="text-left px-4 py-2 font-medium w-24">YOY</th>
-              <th className="text-center px-4 py-2 font-medium w-16">竞品</th>
-              <th className="text-center px-4 py-2 font-medium w-16">本品</th>
-            </tr>
-          </thead>
-          <tbody>
-            {analysis.rows.map((row) => (
-              <tr
-                key={row.value}
-                onClick={() => onRowClick(row)}
-                className="border-b border-gray-50 hover:bg-amber-50 cursor-pointer transition-colors group"
-              >
-                <td className="px-4 py-2.5">
-                  <span className="font-medium text-gray-800 group-hover:text-amber-700 transition-colors">
-                    {row.value}
-                  </span>
-                </td>
-                <td className="px-4 py-2.5">
-                  <ShareBar share={row.shareCurr} maxShare={maxShare} />
-                </td>
-                <td className="px-4 py-2.5">
-                  <YoyBadge yoy={row.yoy} />
-                </td>
-                <td className="px-4 py-2.5 text-center">
-                  <CheckMark has={row.hasCompetitor} />
-                </td>
-                <td className="px-4 py-2.5 text-center">
-                  <CheckMark has={row.hasOwnBrand} />
-                </td>
+        <div className="overflow-x-auto mt-4">
+          <table className="w-full">
+            <thead>
+              <tr className="text-[10px] text-gray-400 border-b border-gray-100 uppercase tracking-luxury font-semibold">
+                <th className="text-left py-4 font-semibold w-1/4">Attribute</th>
+                <th className="text-left py-4 font-semibold">Market Share & Trend</th>
+                <th className="text-right py-4 font-semibold w-24">YOY</th>
+                <th className="text-center py-4 font-semibold w-16">Comp</th>
+                <th className="text-center py-4 font-semibold w-16">Own</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {analysis.rows.map((row) => (
+                <tr
+                  key={row.value}
+                  onClick={() => onRowClick(row)}
+                  className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors group"
+                >
+                  <td className="py-5 pr-4">
+                    <span className="text-sm text-black font-medium tracking-wide group-hover:underline">
+                      {row.value}
+                    </span>
+                  </td>
+                  <td className="py-5">
+                    <ShareBar share={row.shareCurr} maxShare={maxShare} />
+                  </td>
+                  <td className="py-5 text-right">
+                    <YoyBadge yoy={row.yoy} />
+                  </td>
+                  <td className="py-5 text-center">
+                    <CheckMark has={row.hasCompetitor} />
+                  </td>
+                  <td className="py-5 text-center">
+                    <CheckMark has={row.hasOwnBrand} isOwn />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
@@ -542,21 +545,21 @@ export default function CategoryAnalysis() {
   }, [products, config, selectedTab, ownBrandNick]);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-white">
       {/* Sticky Header */}
-      <div className="sticky top-0 z-40 bg-white border-b border-gray-200 shadow-sm">
-        <div className="max-w-5xl mx-auto px-6">
+      <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-gray-100">
+        <div className="max-w-7xl mx-auto px-8">
           {/* Title Row */}
-          <div className="flex items-center justify-between py-4">
-            <div className="flex items-center gap-3">
+          <div className="flex items-center justify-between py-6">
+            <div className="flex items-baseline gap-6">
               {/* Category Dropdown */}
               {CATEGORY_CONFIGS.length === 1 ? (
-                <h1 className="text-xl font-bold text-gray-900">{config.name}</h1>
+                <h1 className="text-2xl font-light tracking-luxury-wider text-black">{config.name}</h1>
               ) : (
                 <select
                   value={configIndex}
                   onChange={(e) => setConfigIndex(Number(e.target.value))}
-                  className="text-xl font-bold text-gray-900 bg-transparent border-b-2 border-gray-300 focus:border-amber-400 outline-none cursor-pointer pb-0.5"
+                  className="text-2xl font-light tracking-luxury-wider text-black bg-transparent outline-none cursor-pointer border-b border-transparent hover:border-black transition-colors py-1 uppercase"
                 >
                   {CATEGORY_CONFIGS.map((c, i) => (
                     <option key={c.name} value={i}>
@@ -565,50 +568,56 @@ export default function CategoryAnalysis() {
                   ))}
                 </select>
               )}
-              <span className="text-gray-300">|</span>
-              <span className="text-sm text-gray-500">品类属性分析</span>
-              <span className="px-2 py-0.5 bg-gray-100 text-gray-500 text-xs rounded-full">
-                {CURRENT_YEAR} vs {PREV_YEAR}
-              </span>
+              <div className="h-4 w-[1px] bg-gray-200" />
+              <div className="flex items-center gap-3">
+                <span className="text-[10px] text-gray-400 uppercase tracking-widest font-semibold">Trend Analysis</span>
+                <span className="text-[10px] bg-[#C5973F] text-white px-2 py-0.5 font-bold tracking-tighter">
+                  {CURRENT_YEAR} / {PREV_YEAR}
+                </span>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-400">本品</span>
-              {!loading && brands.length > 0 ? (
-                <select
-                  value={ownBrandNick}
-                  onChange={(e) => setOwnBrandNick(e.target.value)}
-                  className="px-2.5 py-1 bg-amber-50 border border-amber-300 text-amber-700 text-sm font-semibold rounded-lg outline-none cursor-pointer max-w-[180px] truncate"
-                >
-                  {brands.map((b) => (
-                    <option key={b} value={b}>
-                      {b}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <span className="px-2.5 py-1 bg-amber-50 border border-amber-300 text-amber-700 text-sm font-semibold rounded-lg">
-                  —
-                </span>
-              )}
+
+            <div className="flex items-center gap-6">
+              <div className="flex flex-col items-end gap-1">
+                <span className="text-[9px] text-gray-400 uppercase tracking-widest font-bold">Own Brand View</span>
+                {!loading && brands.length > 0 ? (
+                  <select
+                    value={ownBrandNick}
+                    onChange={(e) => setOwnBrandNick(e.target.value)}
+                    className="text-xs font-bold text-black uppercase tracking-wider outline-none cursor-pointer border-b border-black pb-0.5 bg-transparent"
+                  >
+                    {brands.map((b) => (
+                      <option key={b} value={b}>
+                        {cleanBrandName(b)}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <span className="text-xs font-bold text-black uppercase tracking-wider">—</span>
+                )}
+              </div>
               {!loading && (
-                <span className="text-xs text-gray-400">
-                  {selectedTab ? `${selectedTab} ` : ""}共 {ownBrandCount} 款
-                </span>
+                <div className="border-l border-gray-100 pl-6 flex flex-col items-end gap-1">
+                  <span className="text-[9px] text-gray-400 uppercase tracking-widest font-bold">Selection Size</span>
+                  <span className="text-xs font-medium text-black uppercase tracking-tighter">
+                    {selectedTab ? `${selectedTab} ` : ""} / {ownBrandCount} Items
+                  </span>
+                </div>
               )}
             </div>
           </div>
 
           {/* Tab 切换 */}
           {!loading && tabValues.length > 0 && (
-            <div className="flex gap-1 pb-3">
+            <div className="flex gap-10 pb-4">
               {tabValues.map((t) => (
                 <button
                   key={t.value}
                   onClick={() => setSelectedTab(t.value)}
-                  className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  className={`text-[11px] font-bold uppercase tracking-luxury transition-all relative pb-2 ${
                     selectedTab === t.value
-                      ? "bg-gray-900 text-white"
-                      : "text-gray-500 hover:bg-gray-100"
+                      ? "text-black after:content-[''] after:absolute after:bottom-0 after:left-0 after:w-full after:h-0.5 after:bg-[#C5973F]"
+                      : "text-gray-400 hover:text-black"
                   }`}
                 >
                   {t.value}
@@ -620,46 +629,18 @@ export default function CategoryAnalysis() {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-5xl mx-auto px-6 py-6">
+      <div className="max-w-7xl mx-auto px-8 py-12">
         {loading ? (
-          <div className="flex items-center justify-center py-32 text-gray-400">
+          <div className="flex items-center justify-center py-48 text-gray-300">
             <div className="text-center">
-              <div className="w-8 h-8 border-2 border-amber-400 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-              <p className="text-sm">加载数据中…</p>
+              <div className="w-10 h-10 border-t-2 border-black rounded-full animate-spin mx-auto mb-6" />
+              <p className="text-xs uppercase tracking-luxury-wider font-medium">Synchronizing Data...</p>
             </div>
           </div>
         ) : (
-          <>
-            {/* Legend */}
-            <div className="flex items-center gap-6 mb-6 text-xs text-gray-400 flex-wrap">
-              <div className="flex items-center gap-1.5">
-                <div className="w-3 h-3 rounded-full bg-amber-400" />
-                <span>
-                  {String(CURRENT_YEAR).slice(2)}年销量占比
-                  {config.tabDimension ? `（${config.tabDimension}内归一化）` : ""}
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-emerald-600 font-bold">+%</span>
-                <span>同比增长</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-red-500 font-bold">-%</span>
-                <span>同比下降</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="inline-block px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px] font-semibold">
-                  NEW
-                </span>
-                <span>今年新出现</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-gray-400 text-xs">点击行查看相关商品</span>
-              </div>
-            </div>
-
-            {/* Attribute Tables */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden p-2">
+          <div className="flex flex-col lg:flex-row gap-16">
+            {/* Analysis Tables */}
+            <div className="flex-1 max-w-4xl">
               {analysis.map((dim) => (
                 <DimensionTable
                   key={dim.dimension}
@@ -668,7 +649,46 @@ export default function CategoryAnalysis() {
                 />
               ))}
             </div>
-          </>
+
+            {/* Side Info / Legend */}
+            <div className="lg:w-64 shrink-0 space-y-12">
+              <section>
+                <h4 className="text-[11px] text-black font-bold uppercase tracking-luxury mb-6 border-b border-gray-100 pb-2">Legend</h4>
+                <div className="space-y-6">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-[2px] bg-[#C5973F]" />
+                      <span className="text-[10px] text-black font-bold uppercase tracking-wider">{CURRENT_YEAR} Share</span>
+                    </div>
+                    <p className="text-[10px] text-gray-400 leading-relaxed italic">
+                      Normalized within current {config.tabDimension || 'category'}.
+                    </p>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="inline-block px-1.5 py-0.5 border border-black text-black text-[9px] font-bold tracking-widest uppercase">NEW</span>
+                      <span className="text-[10px] text-black font-bold uppercase tracking-wider">Arrivals</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center justify-center w-5 h-5 bg-[#C5973F] text-white text-[9px] font-bold tracking-tight">JC</span>
+                      <span className="text-[10px] text-black font-bold uppercase tracking-wider">Own Brand</span>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section>
+                <h4 className="text-[11px] text-black font-bold uppercase tracking-luxury mb-4 border-b border-gray-100 pb-2">Navigation Hint</h4>
+                <p className="text-[10px] text-gray-400 leading-relaxed uppercase tracking-tighter">
+                  Select any attribute row to explore current seasonal product curation.
+                </p>
+              </section>
+            </div>
+          </div>
         )}
       </div>
 
