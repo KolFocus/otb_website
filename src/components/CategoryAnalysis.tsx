@@ -690,6 +690,116 @@ function ProductModal({
   );
 }
 
+// ─── BrandFilterDropdown ──────────────────────────────────────────────────────
+
+function BrandFilterDropdown({
+  allBrands,
+  selectedBrands,
+  onChange,
+}: {
+  allBrands: string[];
+  selectedBrands: string[];
+  onChange: (brands: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const isAll = selectedBrands.length === allBrands.length;
+
+  const toggle = (nick: string) => {
+    if (nick === DEFAULT_OWN_BRAND_NICK) return; // 本品不可取消
+    if (selectedBrands.includes(nick)) {
+      const next = selectedBrands.filter((b) => b !== nick);
+      if (next.length > 0) onChange(next);
+    } else {
+      onChange([...selectedBrands, nick]);
+    }
+  };
+
+  const selectNone = () => onChange([DEFAULT_OWN_BRAND_NICK]);
+
+  const invert = () => {
+    const next = allBrands.filter(
+      (b) => b === DEFAULT_OWN_BRAND_NICK || !selectedBrands.includes(b)
+    );
+    if (next.length > 0) onChange(next);
+  };
+
+  return (
+    <div ref={ref} className="relative flex flex-col items-end gap-1">
+      <span className="text-[9px] text-gray-400 uppercase tracking-widest font-bold">Brand Filter</span>
+      <button
+        onClick={() => setOpen(!open)}
+        className={`text-xs font-bold uppercase tracking-wider border-b pb-0.5 transition-colors ${
+          isAll ? "text-gray-400 border-gray-300" : "text-[#C5973F] border-[#C5973F]"
+        }`}
+      >
+        {isAll ? "All Brands" : `${selectedBrands.length} / ${allBrands.length} Brands`}
+      </button>
+
+      {open && (
+        <div className="absolute top-full right-0 mt-2 w-60 bg-white border border-gray-200 shadow-xl z-50 max-h-80 overflow-y-auto">
+          {/* Quick actions */}
+          <div className="flex border-b border-gray-100 sticky top-0 bg-white">
+            {[
+              { label: "All", action: () => onChange(allBrands) },
+              { label: "None", action: selectNone },
+              { label: "Invert", action: invert },
+            ].map(({ label, action }, i) => (
+              <button
+                key={label}
+                onClick={action}
+                className={`flex-1 py-2 text-[10px] uppercase tracking-widest font-bold hover:bg-gray-50 transition-colors ${
+                  i > 0 ? "border-l border-gray-100" : ""
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {/* Brand list */}
+          {allBrands.map((nick) => {
+            const isOwn = nick === DEFAULT_OWN_BRAND_NICK;
+            return (
+              <label
+                key={nick}
+                className={`flex items-center gap-3 px-4 py-2.5 border-b border-gray-50 ${
+                  isOwn ? "opacity-60 cursor-not-allowed" : "hover:bg-gray-50 cursor-pointer"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedBrands.includes(nick)}
+                  onChange={() => toggle(nick)}
+                  disabled={isOwn}
+                  className="accent-[#C5973F] cursor-pointer disabled:cursor-not-allowed"
+                />
+                <BrandLogo nick={nick} className="w-4 h-4 grayscale flex-shrink-0" />
+                <span className="text-[11px] text-black font-medium flex-1 truncate">
+                  {cleanBrandName(nick)}
+                </span>
+                {isOwn && (
+                  <span className="text-[8px] bg-[#C5973F] text-white px-1.5 py-0.5 font-bold flex-shrink-0">
+                    OWN
+                  </span>
+                )}
+              </label>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── DimensionTable ────────────────────────────────────────────────────────────
 
 function DimensionTable({
@@ -774,8 +884,9 @@ export default function CategoryAnalysis() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTab, setSelectedTab] = useState<string | null>(null);
-  const [ownBrandNick, setOwnBrandNick] = useState<string>(DEFAULT_OWN_BRAND_NICK);
   const [modal, setModal] = useState<ModalState | null>(null);
+  const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
+  const ownBrandNick = DEFAULT_OWN_BRAND_NICK;
   const [headerHeight, setHeaderHeight] = useState(0);
   const headerRef = useRef<HTMLDivElement>(null);
 
@@ -801,12 +912,8 @@ export default function CategoryAnalysis() {
       .then((r) => r.json())
       .then((data: Product[]) => {
         setProducts(data);
+        setSelectedBrands(deriveBrands(data)); // 默认全选
         setLoading(false);
-        // 如果默认本品在新数据中存在则保留，否则重置为第一个品牌
-        setOwnBrandNick((prev) => {
-          const brands = deriveBrands(data);
-          return brands.includes(prev) ? prev : (brands[0] ?? prev);
-        });
       });
   }, [config.dataFile]);
 
@@ -822,25 +929,33 @@ export default function CategoryAnalysis() {
     else setSelectedTab(null);
   }, [tabValues]);
 
+  const allBrands = useMemo(() => deriveBrands(products), [products]);
+
+  const filteredProducts = useMemo(
+    () =>
+      selectedBrands.length === 0 || selectedBrands.length === allBrands.length
+        ? products
+        : products.filter((p) => selectedBrands.includes(p.brand)),
+    [products, selectedBrands, allBrands.length]
+  );
+
   // Current tab's excluded dimensions
   const currentTabConfig = useMemo(
     () => tabValues.find((t) => t.value === selectedTab) ?? { value: selectedTab ?? "" },
     [tabValues, selectedTab]
   );
 
-  // 品牌列表（供本品下拉选择）
-  const brands = useMemo(() => deriveBrands(products), [products]);
 
   const analysis = useMemo(
     () =>
       computeAnalysis(
-        products,
+        filteredProducts,
         config,
         ownBrandNick,
         selectedTab,
         currentTabConfig.excludeDimensions ?? []
       ),
-    [products, config, ownBrandNick, selectedTab, currentTabConfig]
+    [filteredProducts, config, ownBrandNick, selectedTab, currentTabConfig]
   );
 
   const handleRowClick = useCallback(
@@ -852,23 +967,23 @@ export default function CategoryAnalysis() {
 
   const ownBrandCount = useMemo(() => {
     const tabKey = config.tabDimension as keyof Product["attrs"] | undefined;
-    return products.filter(
+    return filteredProducts.filter(
       (p) =>
         p.year === CURRENT_YEAR &&
         (!tabKey || !selectedTab || p.attrs[tabKey] === selectedTab) &&
         isOwnBrand(p, ownBrandNick)
     ).length;
-  }, [products, config, selectedTab, ownBrandNick]);
+  }, [filteredProducts, config, selectedTab, ownBrandNick]);
 
   return (
     <div className="min-h-screen bg-white">
       {/* Sticky Header */}
       <div ref={headerRef} className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-8">
-          {/* Title Row */}
-          <div className="flex items-center justify-between py-6">
-            <div className="flex items-baseline gap-6">
-              {/* Category Dropdown */}
+          {/* Title Row — 与主内容使用相同的 grid 列宽，确保左右边界对齐 */}
+          <div className="grid py-6 gap-16" style={{ gridTemplateColumns: "1fr 16rem" }}>
+            {/* 左列：品类名 + 趋势标注 + 品牌过滤器 */}
+            <div className="flex items-center gap-6 min-w-0">
               {CATEGORY_CONFIGS.length === 1 ? (
                 <h1 className="text-2xl font-light tracking-luxury-wider text-black">{config.name}</h1>
               ) : (
@@ -884,36 +999,35 @@ export default function CategoryAnalysis() {
                   ))}
                 </select>
               )}
-              <div className="h-4 w-[1px] bg-gray-200" />
+              <div className="h-4 w-[1px] bg-gray-200 flex-shrink-0" />
               <div className="flex items-center gap-3">
                 <span className="text-[10px] text-gray-400 uppercase tracking-widest font-semibold">Trend Analysis</span>
                 <span className="text-[10px] bg-[#C5973F] text-white px-2 py-0.5 font-bold tracking-tighter">
                   {CURRENT_YEAR} / {PREV_YEAR}
                 </span>
               </div>
+              {!loading && allBrands.length > 0 && (
+                <>
+                  <div className="h-4 w-[1px] bg-gray-200 flex-shrink-0" />
+                  <BrandFilterDropdown
+                    allBrands={allBrands}
+                    selectedBrands={selectedBrands}
+                    onChange={setSelectedBrands}
+                  />
+                </>
+              )}
             </div>
 
-            <div className="flex items-center gap-6">
-              <div className="flex flex-col items-end gap-1">
+            {/* 右列：本品 + 数量（宽度 = w-64，与 Legend 栏左边界严格对齐） */}
+            <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-1">
                 <span className="text-[9px] text-gray-400 uppercase tracking-widest font-bold">Own Brand View</span>
-                {!loading && brands.length > 0 ? (
-                  <select
-                    value={ownBrandNick}
-                    onChange={(e) => setOwnBrandNick(e.target.value)}
-                    className="text-xs font-bold text-black uppercase tracking-wider outline-none cursor-pointer border-b border-black pb-0.5 bg-transparent"
-                  >
-                    {brands.map((b) => (
-                      <option key={b} value={b}>
-                        {cleanBrandName(b)}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <span className="text-xs font-bold text-black uppercase tracking-wider">—</span>
-                )}
+                <span className="text-xs font-bold text-black uppercase tracking-wider">
+                  {cleanBrandName(DEFAULT_OWN_BRAND_NICK)}
+                </span>
               </div>
               {!loading && (
-                <div className="border-l border-gray-100 pl-6 flex flex-col items-end gap-1">
+                <div className="flex flex-col items-end gap-1">
                   <span className="text-[9px] text-gray-400 uppercase tracking-widest font-bold">Selection Size</span>
                   <span className="text-xs font-medium text-black uppercase tracking-tighter">
                     {selectedTab ? `${selectedTab} ` : ""} / {ownBrandCount} Items
@@ -945,7 +1059,7 @@ export default function CategoryAnalysis() {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-8 py-12">
+      <div className="max-w-7xl mx-auto px-8 pt-0 pb-12">
         {loading ? (
           <div className="flex items-center justify-center py-48 text-gray-300">
             <div className="text-center">
@@ -968,7 +1082,7 @@ export default function CategoryAnalysis() {
             </div>
 
             {/* Side Info / Legend */}
-            <div className="lg:w-64 shrink-0 space-y-12">
+            <div className="lg:w-64 shrink-0 space-y-12 self-start sticky" style={{ top: headerHeight + 16 }}>
               <section>
                 <h4 className="text-[11px] text-black font-bold uppercase tracking-luxury mb-6 border-b border-gray-100 pb-2">Legend</h4>
                 <div className="space-y-6">
@@ -1013,7 +1127,7 @@ export default function CategoryAnalysis() {
       {modal && (
         <ProductModal
           modal={modal}
-          products={products}
+          products={filteredProducts}
           config={config}
           tabValues={tabValues}
           ownBrandNick={ownBrandNick}
